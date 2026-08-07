@@ -7,6 +7,10 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Anton&family=Space+Grotesk:wght@400;500;700&family=Roboto+Mono:wght@500;700&display=swap" rel="stylesheet">
+<!-- Supabase client — only used when a project is configured in the script below.
+     Loaded synchronously so window.supabase exists before the app runs. If it
+     fails to load, the app quietly falls back to this device's localStorage. -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
   :root{
     --pitch:#0B2E22;
@@ -178,6 +182,25 @@
     .dealt li{animation:none}
     *{transition:none!important}
   }
+
+  /* check-in link + mode */
+  .modelink{color:var(--bib);text-decoration:none;font-weight:700;font-family:var(--body)}
+  .modelink:hover{text-decoration:underline}
+  #checkinbar{display:none}
+  #checkinbar .tagline:first-child{color:var(--chalk);text-transform:none;letter-spacing:0;font-size:14px}
+  body.checkin #checkinbar{display:block}
+  body.checkin #tocheckin{display:none}
+  /* In check-in mode, strip everything down to tap-your-name-to-toggle */
+  body.checkin .add-row,
+  body.checkin #empty,
+  body.checkin .draw-bar,
+  body.checkin #legend,
+  body.checkin #pitch,
+  body.checkin #result,
+  body.checkin .chip .pos,
+  body.checkin .chip .x{display:none!important}
+  body.checkin .chip{padding:6px 12px}
+  body.checkin .chip .nm{font-size:16px}
 </style>
 </head>
 <body>
@@ -186,6 +209,11 @@
   <header>
     <h1>BS F.C.<span class="thin">(Soccer)</span></h1>
     <p class="tagline">Friday 8-a-side · sixteen names in · nobody does the picking</p>
+    <p class="tagline" id="tocheckin"><a class="modelink" href="#checkin">Just checking in? Mark yourself in or out →</a></p>
+    <div id="checkinbar">
+      <p class="tagline">Tap your name to check in or out for Friday — everyone shares this one list.</p>
+      <p class="tagline"><a class="modelink" href="#full">← Back to the full app</a></p>
+    </div>
   </header>
 
   <section class="panel" aria-labelledby="squad-title">
@@ -215,6 +243,7 @@
     <button class="btn ghost" id="again" hidden>Draw again</button>
     <button class="btn lock" id="lock" hidden>Lock in tonight</button>
     <button class="btn ghost" id="copy" hidden>Copy for the group chat</button>
+    <button class="btn ghost" id="wa" hidden>Send to WhatsApp</button>
     <span class="note" id="drawnote"></span>
   </div>
   <p class="legend" id="legend" hidden></p>
@@ -264,6 +293,15 @@
   var CANDIDATES = 320;             // draws generated, best one wins
   var SHORTLIST = 10;               // kept for the "draw again" cycle
 
+  /* ---------- shared backend config ----------
+     Paste your Supabase project URL + anon (public) key below to give the whole
+     group ONE shared squad / draw / history, updating live on every phone. Leave
+     them blank and the app falls back to this device's own localStorage (private,
+     not shared) so it still works locally and offline. The anon key is designed to
+     be public — it's safe to ship in the page. Run supabase-schema.sql once first. */
+  var SUPABASE_URL = "";
+  var SUPABASE_ANON_KEY = "";
+
   // Hidden balance layer. Nobody sees these numbers — not the group, not you.
   // They only ever move when a result is recorded.
   var START = 50, FLOOR = 25, CEILING = 75, K = 3;
@@ -302,22 +340,66 @@
   var $ = function(id){ return document.getElementById(id); };
   var byOrder = function(list){ return POSITIONS.filter(function(c){ return list.indexOf(c) > -1; }); };
 
-  /* ---------- storage ---------- */
-  function saveSquad(){
-    try { window.storage && window.storage.set(SQUAD_KEY, JSON.stringify(squad), false); } catch(e){}
+  /* ---------- storage ----------
+     One tiny async key/value module. Everything else (the draw, repeat memory and
+     hidden ratings) still works on plain arrays and never touches this — swapping
+     the backend is localised right here. When a Supabase project is configured the
+     whole group shares one squad / history live; otherwise it's this device's
+     localStorage. */
+  var store = (function(){
+    var ready = !!(SUPABASE_URL && SUPABASE_ANON_KEY && window.supabase);
+    var sb = ready ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
+
+    function lsGet(key){
+      try { var v = localStorage.getItem(key); return v ? JSON.parse(v) : null; }
+      catch(e){ return null; }
+    }
+    function lsSet(key, val){
+      try { localStorage.setItem(key, JSON.stringify(val)); } catch(e){}
+    }
+
+    return {
+      shared: ready,
+      get: async function(key){
+        if (!ready) return lsGet(key);
+        var r = await sb.from("app_state").select("value").eq("key", key).maybeSingle();
+        if (r.error) throw r.error;
+        return r.data ? r.data.value : null;
+      },
+      set: async function(key, val){
+        if (!ready) { lsSet(key, val); return; }
+        var r = await sb.from("app_state").upsert(
+          { key: key, value: val, updated_at: new Date().toISOString() },
+          { onConflict: "key" });
+        if (r.error) throw r.error;
+      },
+      // Fires whenever another device changes the shared state.
+      watch: function(cb){
+        if (!ready) return;
+        sb.channel("app_state_live")
+          .on("postgres_changes",
+              { event: "*", schema: "public", table: "app_state" }, cb)
+          .subscribe();
+      }
+    };
+  })();
+
+  function saveSquad(){ store.set(SQUAD_KEY, squad).catch(function(e){ console.warn("saveSquad", e); }); }
+  function saveHistory(){ store.set(HIST_KEY, history).catch(function(e){ console.warn("saveHistory", e); }); }
+
+  // Tidy up saved data — fill in defaults for older/partial records.
+  function normalizeSquad(){
+    squad.forEach(function(p){
+      if (!p.positions) p.positions = [p.keeper ? "GK" : (p.pos || "MID")];   // older saved squads
+      delete p.pos;
+      if (typeof p.rating !== "number") p.rating = START;
+      if (p.id >= seq) seq = p.id + 1;
+    });
   }
-  function saveHistory(){
-    try { window.storage && window.storage.set(HIST_KEY, JSON.stringify(history), false); } catch(e){}
-  }
+
   async function load(){
-    try {
-      var r = await window.storage.get(SQUAD_KEY, false);
-      if (r && r.value) squad = JSON.parse(r.value) || [];
-    } catch(e){ squad = []; }
-    try {
-      var h = await window.storage.get(HIST_KEY, false);
-      if (h && h.value) history = JSON.parse(h.value) || [];
-    } catch(e){ history = []; }
+    try { var s = await store.get(SQUAD_KEY); if (s && s.length) squad = s; } catch(e){ squad = []; }
+    try { var h = await store.get(HIST_KEY); if (h) history = h; } catch(e){ history = []; }
     if (!squad.length){
       squad = SEED.map(function(row){
         return { id: seq++, name: row.name, positions: row.positions, playing: true, rating: START };
@@ -336,13 +418,22 @@
         saveHistory();
       }
     }
-    squad.forEach(function(p){
-      if (!p.positions) p.positions = [p.keeper ? "GK" : (p.pos || "MID")];   // older saved squads
-      delete p.pos;
-      if (typeof p.rating !== "number") p.rating = START;
-      if (p.id >= seq) seq = p.id + 1;
-    });
+    normalizeSquad();
     render();
+    store.watch(syncFromRemote);
+  }
+
+  // Another device changed the shared squad/history — pull it in and re-render,
+  // without disturbing a draw that's currently on screen.
+  async function syncFromRemote(){
+    try {
+      var s = await store.get(SQUAD_KEY);
+      var h = await store.get(HIST_KEY);
+      var changed = false;
+      if (s && JSON.stringify(s) !== JSON.stringify(squad)) { squad = s; normalizeSquad(); changed = true; }
+      if (h && JSON.stringify(h) !== JSON.stringify(history)) { history = h; changed = true; }
+      if (changed) render();
+    } catch(e){ console.warn("sync", e); }
   }
 
   /* ---------- squad ---------- */
@@ -545,6 +636,7 @@
     $("draw").textContent = teams ? "Start over" : "Pick the teams";
     $("again").hidden = !teams;
     $("copy").hidden = !teams;
+    $("wa").hidden = !teams;
     $("lock").hidden = !teams;
     $("lock").disabled = locked;
     $("lock").textContent = locked ? "Locked in" : "Lock in tonight";
@@ -721,6 +813,14 @@
     catch(e){ toast("Select and copy the teams above"); }
     document.body.removeChild(ta);
   }
+  function shareWhatsApp(){
+    if (!teams) return;
+    window.open("https://wa.me/?text=" + encodeURIComponent(asText()), "_blank", "noopener");
+  }
+
+  /* ---------- check-in mode ---------- */
+  function isCheckin(){ return (location.hash || "").replace(/^#/, "") === "checkin"; }
+  function applyMode(){ document.body.classList.toggle("checkin", isCheckin()); }
 
   /* ---------- wiring ---------- */
   Array.prototype.forEach.call(document.querySelectorAll(".seg button"), function(b){
@@ -738,10 +838,13 @@
   $("again").onclick = drawAgain;
   $("lock").onclick = lockIn;
   $("copy").onclick = copy;
+  $("wa").onclick = shareWhatsApp;
   $("winA").onclick = function(){ recordResult("a"); };
   $("winB").onclick = function(){ recordResult("b"); };
   $("drawn").onclick = function(){ recordResult("d"); };
+  window.addEventListener("hashchange", applyMode);
 
+  applyMode();
   load();
 })();
 </script>

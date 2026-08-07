@@ -1,0 +1,9 @@
+# Static single-file site — nothing to build, just publish the folder.
+[build]
+  publish = "."
+  command = ""
+
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200

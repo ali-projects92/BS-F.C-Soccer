@@ -25,43 +25,58 @@ It already does:
   exists by design — you can't tilt it.
 - **This week's squad is pre-seeded** (see `SEED` / `SEED_WEEK` near the top of
   the script) with the real 16 players and the current split.
+- **Shared storage** — with a Supabase project configured, the whole group shares
+  one squad / one draw / one history, updating live on every phone. With nothing
+  configured it falls back to this device's `localStorage`.
+- **Player self check-in** — a stripped-down `#checkin` view where each player taps
+  their own name to mark in/out for the week (see below).
+- **Send to WhatsApp** — one tap opens WhatsApp pre-filled with the formatted teams.
 
-### Storage: the key limitation
+## Setup: shared backend (Supabase)
 
-Data is saved via a `window.storage` key/value API that only exists inside the
-Claude artifact host. **In a normal browser there is no persistence**, and more
-importantly, **every user gets their own private copy** — there is no shared
-state. This is the single biggest thing to fix.
+Without this the app still runs, but storage is per-device (private, not shared).
+To give the group one shared live list:
 
-## What to build next (in priority order)
+1. Create a free project at [supabase.com](https://supabase.com).
+2. Open **SQL Editor → New query**, paste in [`supabase-schema.sql`](./supabase-schema.sql)
+   and run it. That creates the `app_state` table, opens read/write to the anon
+   key, and turns on live sync.
+3. In **Settings → API**, copy the **Project URL** and the **anon / public** key.
+4. Paste them into `SUPABASE_URL` and `SUPABASE_ANON_KEY` near the top of the
+   `<script>` in `index.html`, then reload / redeploy.
 
-### 1. Shared backend (the whole point of moving here)
-Replace the per-device `window.storage` calls with a real shared datastore so
-the whole group sees one squad, one draw, one history. Recommended: **Supabase**
-(hosted Postgres + instant REST/realtime, generous free tier) or **Firebase**.
+The anon key is designed to be public — it's safe to ship in the page. It's a team
+sheet, not a bank; anyone with the link can edit the list. Hidden ratings live in
+the stored data but are never shown in the UI (see the design notes).
 
-Data model is small:
-- `players` (id, name, positions[], playing, rating, created_at)
-- `weeks` (id, date, team_a[], team_b[], result)
+## Deploy to a real URL
 
-Wrap the existing storage calls behind a tiny async `store` module so the swap
-is localised. The draw logic, repeat avoidance and rating maths stay exactly
-as-is — they already operate on plain arrays.
+It's a static file, so deployment is trivial and zero-config:
 
-### 2. Deploy to a real URL
-Vercel or Netlify. One link the group taps. If it stays a static file + Supabase
-from the browser, deployment is trivial (drag-and-drop or `vercel`).
+- **Vercel** — `vercel` in the repo, or import the repo at vercel.com. `vercel.json`
+  is included.
+- **Netlify** — drag-and-drop the folder, or connect the repo. `netlify.toml`
+  is included (`publish = "."`, no build step).
 
-### 3. (Optional) Availability + light auth
-Let each player mark themselves in/out for the week from their own phone instead
-of the organiser relaying it. Magic-link or a shared group code is plenty — this
-is a kickabout, not a bank.
+## Player self check-in
 
-### 4. (Optional) Nice-to-haves
+Share `…/index.html#checkin` (or tap **"Just checking in?"** in the header). That
+view hides everything except the squad, so a player just taps their own name to go
+in/out for the week — no risk of editing the teams or removing anyone. With Supabase
+configured this writes to the shared list, so the organiser sees availability update
+live. The shared URL is the "group code" — keep it in the group chat, that's plenty.
+
+## Send to WhatsApp
+
+After a draw, **Send to WhatsApp** opens WhatsApp with the teams pre-filled (same
+text as **Copy for the group chat**, produced by `asText()`).
+
+## Ideas left on the table
+
 - A private organiser-only form table (ranking, W/D/L) — keep it behind a code,
   it's socially spicy to show publicly.
-- Push/notification or a WhatsApp share button that formats the teams (the
-  `asText()` function already produces the group-chat text).
+- If per-phone editing ever gets contentious, split the single `app_state` blob into
+  proper `players` / `weeks` tables so concurrent edits don't clobber each other.
 
 ## Design notes to preserve
 - Ratings must **never** be shown in the UI and there must be **no manual
