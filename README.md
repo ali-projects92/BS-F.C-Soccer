@@ -13,10 +13,15 @@ It already does:
 
 - **Squad management** — add/remove players, set one or more positions per
   player (GK / DEF / MID / ATT), sit players out for a week.
-- **The draw** — generates 320 valid splits and shows the best one. Deals each
-  position group evenly across both teams, one keeper per side.
+- **The draw** — generates 320 valid splits and shows the best one, built to a
+  **fixed formation** (default `1 GK, 3 DEF, 1 MID, 3 ATT` per side — set by
+  `FORMATION` near the top of the script). It scales for smaller turnouts, and
+  flexible players fill whatever the shape is short of.
 - **Repeat avoidance** — remembers the last 4 weeks and prefers splits that
   don't reuse last week's pairings (recent weeks weighted heaviest).
+- **Chemistry** — the organiser can mark pairs who play well together (on the
+  `#admin` screen); the draw gets a gentle pull to keep them on the same side. It's
+  a soft factor — balance still leads.
 - **Draw again** — cycles the 10 best alternative splits.
 - **Hidden balancing** — every player has a hidden rating (never shown in the
   UI). After a game you tap who won (Bibs / Draw / Shirts) and an Elo-style
@@ -31,6 +36,24 @@ It already does:
 - **Player self check-in** — a stripped-down `#checkin` view where each player taps
   their own name to mark in/out for the week (see below).
 - **Send to WhatsApp** — one tap opens WhatsApp pre-filled with the formatted teams.
+- **Organiser screen** — a private, passcode-gated `#admin` view (see below) with a
+  read-only look at the hidden balancing and the chemistry editor.
+
+## Organiser screen (`#admin`)
+
+Add `#admin` to the URL (e.g. `…/BS-F.C-Soccer/#admin`) and enter the passcode set in
+`ADMIN_CODE` near the top of the script (default `bsfc-gaffer` — change it). It shows:
+
+- **Balancing** — each player's hidden rating + games + W/D/L, sorted, **read-only**.
+  Players never see this, and there is deliberately **no way to edit a rating by hand**
+  (the auto-Elo stays the only thing that moves them — keeps it argument-proof).
+- **Chemistry** — add/remove pairs the draw should try to keep together.
+
+**Privacy caveat (important):** the passcode is checked in the browser, and the ratings
+live in the shared data (as they always have — just hidden in the UI). So this stops
+**casual** players, but it is **not** airtight: someone technical with the link could
+still read the raw numbers. Fine for a kickabout; true privacy would need a separate
+table with restrictive access rules + real organiser login (a later job).
 
 ## Setup: shared backend (Supabase)
 
@@ -73,8 +96,9 @@ text as **Copy for the group chat**, produced by `asText()`).
 
 ## Ideas left on the table
 
-- A private organiser-only form table (ranking, W/D/L) — keep it behind a code,
-  it's socially spicy to show publicly.
+- Real organiser auth + moving ratings to their own restricted table, if the private
+  balancing ever needs to be genuinely private (see the caveat under the organiser
+  screen above).
 - If per-phone editing ever gets contentious, split the single `app_state` blob into
   proper `players` / `weeks` tables so concurrent edits don't clobber each other.
 

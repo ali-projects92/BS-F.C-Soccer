@@ -16,16 +16,32 @@ sharing on, follow **Setup: shared backend** in `README.md` — run
   near the top of the script. `saveSquad()` / `saveHistory()` are thin wrappers over
   it; `load()` and `syncFromRemote()` read through it. Keep any backend change
   localised here — the rest of the app works on plain arrays.
-- **Draw logic** (`buildShortlist`, `oneDraw`, `assignSlots`), repeat avoidance
-  (`teammateCosts`, `scoreDraw`) and the hidden rating update (`recordResult`) are
+- **Formation** — every side is built to `FORMATION` (default `1 GK, 3 DEF, 1 MID,
+  3 ATT` per team). `assignSlots` fills toward `aggregateFormation(n)` (keepers first,
+  then flexibles fill the position furthest below target); `oneDraw`'s even split then
+  lands each team on the shape. It's best-effort: if declared positions can't make the
+  shape (e.g. too many single-position ATTs), it gets as close as it can.
+- **Chemistry** — `chemistry` = `[[idA,idB],…]` saved under `bsfc-chemistry` via the
+  same `store`. `buildShortlist` subtracts `CHEM_WEIGHT * (#pairs kept together)` from
+  the score, so it's a soft pull, balance still leads. Edited only on `#admin`.
+- **Draw internals** (`buildShortlist` split, `oneDraw`, repeat avoidance
+  `teammateCosts`/`scoreDraw`, hidden rating update `recordResult`) are otherwise
   untouched — leave them alone.
 - **Check-in mode** is a `#checkin` hash + `body.checkin` CSS (`applyMode()`); it
   only hides UI, it adds no new mutation logic (reuses `toggle(id)`).
+- **Organiser screen** is `#admin` + `body.admin`, gated by the `ADMIN_CODE` constant
+  (a light client-side lock — see the caveat in `README.md`). It renders a read-only
+  ratings + W/D/L table (`renderRatings`, W/D/L derived from `history`) and the
+  chemistry editor (`renderChemistry`). No rating editing — auto-Elo stays the only
+  mover.
 - **WhatsApp** is `shareWhatsApp()`, which just wraps the existing `asText()`.
 
 ## Hard rules (don't regress these)
-- Player ratings are HIDDEN. Never render a number. No slider, no manual edit.
-- Positions shape the teams; rating is only a tiebreak.
+- Player ratings are HIDDEN from players. Never render a number in the player UI, and
+  there is NO manual editing anywhere (not even on `#admin`) — the auto-Elo is the only
+  thing that moves a rating. The ONE place a number appears is the passcode-gated,
+  read-only `#admin` screen, for the organiser only.
+- Positions shape the teams (now via the fixed formation); rating is only a tiebreak.
 - Keep the existing visual style.
 
 ## If you pick it up next
