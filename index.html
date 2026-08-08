@@ -211,18 +211,16 @@
   body.admin #pitch,
   body.admin #result{display:none!important}
   #adminpanel .legend button{color:var(--chalk-dim)}
-  .rate-row{display:grid;grid-template-columns:1.3fr .8fr .8fr .6fr .9fr;gap:8px;align-items:center;
-    padding:9px 0;border-bottom:1px solid var(--chalk-faint);font-family:var(--mono);font-size:13px}
-  .rate-row .rname{font-family:var(--body);font-size:15px;font-weight:500}
-  .rate-row .rpos{color:var(--bib);font-size:10px;font-weight:700;letter-spacing:.06em}
-  .rate-row .rval{color:var(--bib);font-weight:700}
-  input.ratein{width:60px;background:rgba(0,0,0,.22);border:1px solid var(--chalk-faint);
+  .rate-card{padding:11px 0;border-bottom:1px solid var(--chalk-faint)}
+  .rate-top{display:flex;align-items:center;gap:10px}
+  .rate-top .rname{flex:1;min-width:0;font-family:var(--body);font-size:15px;font-weight:500;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .rate-top .rmeta{flex:none;font-family:var(--mono);font-size:11px;color:var(--chalk-dim)}
+  .rate-card .mini{margin-top:8px;flex-wrap:wrap}
+  input.ratein{flex:none;width:58px;background:rgba(0,0,0,.22);border:1px solid var(--chalk-faint);
     border-radius:3px;color:var(--bib);font-family:var(--mono);font-weight:700;font-size:13px;
     padding:6px 6px;text-align:center}
   input.ratein:focus{outline:2px solid var(--bib);outline-offset:1px}
-  .rate-row.rate-head{color:var(--chalk-dim);text-transform:uppercase;letter-spacing:.08em;
-    font-size:10px;border-bottom:1px solid var(--chalk-faint)}
-  .rate-row.rate-head span{font-family:var(--mono)}
   select.chemsel{flex:1 1 130px;min-width:0;background:rgba(0,0,0,.22);border:1px solid var(--chalk-faint);
     border-radius:3px;color:var(--chalk);font-family:var(--body);font-size:15px;padding:11px 10px}
   select.chemsel:focus{outline:2px solid var(--bib);outline-offset:2px}
@@ -326,7 +324,7 @@
     </div>
 
     <div id="admincontent" hidden>
-      <p class="field-note">Balancing — hidden from players · tap a rating to change it</p>
+      <p class="field-note">Balancing — hidden from players · tap a rating to change it · tap GK/DEF/MID/ATT to set a player's positions</p>
       <div id="ratingtable"></div>
 
       <p class="field-note">Chemistry — pairs the draw tries to keep on the same side</p>
@@ -1014,29 +1012,39 @@
   function renderRatings(){
     var el = $("ratingtable");
     el.innerHTML = "";
-    var head = document.createElement("div");
-    head.className = "rate-row rate-head";
-    ["Player","Pos","Rating","Games","W-D-L"].forEach(function(h){
-      var s = document.createElement("span"); s.textContent = h; head.appendChild(s);
-    });
-    el.appendChild(head);
     squad.slice().sort(function(a, b){ return (b.rating || START) - (a.rating || START); })
       .forEach(function(p){
         var f = formOf(p.id);
-        var row = document.createElement("div");
-        row.className = "rate-row";
+        var card = document.createElement("div");
+        card.className = "rate-card";
+
+        var top = document.createElement("div");
+        top.className = "rate-top";
         var nm = document.createElement("span"); nm.className = "rname"; nm.textContent = p.name;
-        var ps = document.createElement("span"); ps.className = "rpos"; ps.textContent = (p.positions || []).join("/");
         var rv = document.createElement("input");
         rv.type = "number"; rv.className = "ratein";
         rv.min = String(FLOOR); rv.max = String(CEILING); rv.step = "1";
         rv.value = String(Math.round(p.rating || START));
         rv.setAttribute("aria-label", "Rating for " + p.name);
         rv.onchange = function(){ setRating(p.id, rv.value); };
-        var gm = document.createElement("span"); gm.textContent = f.games;
-        var wl = document.createElement("span"); wl.textContent = f.w + "-" + f.d + "-" + f.l;
-        row.appendChild(nm); row.appendChild(ps); row.appendChild(rv); row.appendChild(gm); row.appendChild(wl);
-        el.appendChild(row);
+        var meta = document.createElement("span"); meta.className = "rmeta";
+        meta.textContent = f.games + (f.games === 1 ? " game · " : " games · ") + f.w + "-" + f.d + "-" + f.l;
+        top.appendChild(nm); top.appendChild(rv); top.appendChild(meta);
+
+        // Tappable position toggles — set roles (incl. combos like GK/DEF, MID/ATT).
+        var mini = document.createElement("div");
+        mini.className = "mini";
+        POSITIONS.forEach(function(code){
+          var b = document.createElement("button");
+          b.type = "button"; b.textContent = code;
+          b.setAttribute("aria-pressed", String(p.positions.indexOf(code) > -1));
+          b.setAttribute("aria-label", code + " for " + p.name);
+          b.onclick = function(){ togglePosition(p.id, code); renderRatings(); };
+          mini.appendChild(b);
+        });
+
+        card.appendChild(top); card.appendChild(mini);
+        el.appendChild(card);
       });
   }
 
