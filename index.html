@@ -215,6 +215,10 @@
     padding:9px 0;border-bottom:1px solid var(--chalk-faint);font-family:var(--mono);font-size:13px}
   .rate-row .rname{font-family:var(--body);font-size:15px;font-weight:500}
   .rate-row .rval{color:var(--bib);font-weight:700}
+  input.ratein{width:60px;background:rgba(0,0,0,.22);border:1px solid var(--chalk-faint);
+    border-radius:3px;color:var(--bib);font-family:var(--mono);font-weight:700;font-size:13px;
+    padding:6px 6px;text-align:center}
+  input.ratein:focus{outline:2px solid var(--bib);outline-offset:1px}
   .rate-row.rate-head{color:var(--chalk-dim);text-transform:uppercase;letter-spacing:.08em;
     font-size:10px;border-bottom:1px solid var(--chalk-faint)}
   .rate-row.rate-head span{font-family:var(--mono)}
@@ -321,7 +325,7 @@
     </div>
 
     <div id="admincontent" hidden>
-      <p class="field-note">Balancing — hidden from everyone but you (read-only)</p>
+      <p class="field-note">Balancing — hidden from players · tap a rating to change it</p>
       <div id="ratingtable"></div>
 
       <p class="field-note">Chemistry — pairs the draw tries to keep on the same side</p>
@@ -1021,12 +1025,30 @@
         var row = document.createElement("div");
         row.className = "rate-row";
         var nm = document.createElement("span"); nm.className = "rname"; nm.textContent = p.name;
-        var rv = document.createElement("span"); rv.className = "rval"; rv.textContent = Math.round(p.rating || START);
+        var rv = document.createElement("input");
+        rv.type = "number"; rv.className = "ratein";
+        rv.min = String(FLOOR); rv.max = String(CEILING); rv.step = "1";
+        rv.value = String(Math.round(p.rating || START));
+        rv.setAttribute("aria-label", "Rating for " + p.name);
+        rv.onchange = function(){ setRating(p.id, rv.value); };
         var gm = document.createElement("span"); gm.textContent = f.games;
         var wl = document.createElement("span"); wl.textContent = f.w + "-" + f.d + "-" + f.l;
         row.appendChild(nm); row.appendChild(rv); row.appendChild(gm); row.appendChild(wl);
         el.appendChild(row);
       });
+  }
+
+  // Organiser-only manual override. Kept on the same scale the auto-Elo uses
+  // (FLOOR..CEILING) so the draw maths stay sane. Players can't reach this.
+  function setRating(id, val){
+    var p = squad.find(function(x){ return x.id === id; });
+    if (!p){ return; }
+    var v = parseFloat(val);
+    if (isNaN(v)){ renderRatings(); return; }
+    p.rating = Math.max(FLOOR, Math.min(CEILING, v));
+    saveSquad();
+    renderRatings();
+    toast("Rating updated");
   }
 
   var nameOf = function(id){ var p = squad.find(function(x){ return x.id === id; }); return p ? p.name : "(left)"; };

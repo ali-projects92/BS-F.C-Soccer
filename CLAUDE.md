@@ -30,17 +30,17 @@ sharing on, follow **Setup: shared backend** in `README.md` — run
 - **Check-in mode** is a `#checkin` hash + `body.checkin` CSS (`applyMode()`); it
   only hides UI, it adds no new mutation logic (reuses `toggle(id)`).
 - **Organiser screen** is `#admin` + `body.admin`, gated by the `ADMIN_CODE` constant
-  (a light client-side lock — see the caveat in `README.md`). It renders a read-only
-  ratings + W/D/L table (`renderRatings`, W/D/L derived from `history`) and the
-  chemistry editor (`renderChemistry`). No rating editing — auto-Elo stays the only
-  mover.
+  (a light client-side lock — see the caveat in `README.md`). It renders the ratings +
+  W/D/L table (`renderRatings`, W/D/L derived from `history`) and the chemistry editor
+  (`renderChemistry`). The organiser can hand-edit a rating there (`setRating`, clamped
+  to `FLOOR..CEILING`); this is the ONLY place editing exists.
 - **WhatsApp** is `shareWhatsApp()`, which just wraps the existing `asText()`.
 
 ## Hard rules (don't regress these)
-- Player ratings are HIDDEN from players. Never render a number in the player UI, and
-  there is NO manual editing anywhere (not even on `#admin`) — the auto-Elo is the only
-  thing that moves a rating. The ONE place a number appears is the passcode-gated,
-  read-only `#admin` screen, for the organiser only.
+- Player ratings are HIDDEN from players. Never render a number in the player UI. The
+  ONLY place a number appears — or can be edited — is the passcode-gated `#admin`
+  screen, for the organiser. Outside that, the auto-Elo (`recordResult`) is the only
+  thing that moves a rating; never add a rating control to the player-facing UI.
 - Positions shape the teams (now via the fixed formation); rating is only a tiebreak.
 - Keep the existing visual style.
 

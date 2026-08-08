@@ -44,9 +44,10 @@ It already does:
 Add `#admin` to the URL (e.g. `…/BS-F.C-Soccer/#admin`) and enter the passcode set in
 `ADMIN_CODE` near the top of the script (default `bsfc-gaffer` — change it). It shows:
 
-- **Balancing** — each player's hidden rating + games + W/D/L, sorted, **read-only**.
-  Players never see this, and there is deliberately **no way to edit a rating by hand**
-  (the auto-Elo stays the only thing that moves them — keeps it argument-proof).
+- **Balancing** — each player's hidden rating + games + W/D/L, sorted. Players never
+  see this. The organiser **can hand-edit a rating** here (tap the number; it's kept on
+  the same 25–75 scale the auto-Elo uses). Everywhere else, results are still the only
+  thing that move ratings — this override lives on `#admin` only.
 - **Chemistry** — add/remove pairs the draw should try to keep together.
 
 **Privacy caveat (important):** the passcode is checked in the browser, and the ratings
