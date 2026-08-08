@@ -211,9 +211,10 @@
   body.admin #pitch,
   body.admin #result{display:none!important}
   #adminpanel .legend button{color:var(--chalk-dim)}
-  .rate-row{display:grid;grid-template-columns:1.6fr .8fr .7fr 1fr;gap:10px;align-items:center;
+  .rate-row{display:grid;grid-template-columns:1.3fr .8fr .8fr .6fr .9fr;gap:8px;align-items:center;
     padding:9px 0;border-bottom:1px solid var(--chalk-faint);font-family:var(--mono);font-size:13px}
   .rate-row .rname{font-family:var(--body);font-size:15px;font-weight:500}
+  .rate-row .rpos{color:var(--bib);font-size:10px;font-weight:700;letter-spacing:.06em}
   .rate-row .rval{color:var(--bib);font-weight:700}
   input.ratein{width:60px;background:rgba(0,0,0,.22);border:1px solid var(--chalk-faint);
     border-radius:3px;color:var(--bib);font-family:var(--mono);font-weight:700;font-size:13px;
@@ -1015,7 +1016,7 @@
     el.innerHTML = "";
     var head = document.createElement("div");
     head.className = "rate-row rate-head";
-    ["Player","Rating","Games","W-D-L"].forEach(function(h){
+    ["Player","Pos","Rating","Games","W-D-L"].forEach(function(h){
       var s = document.createElement("span"); s.textContent = h; head.appendChild(s);
     });
     el.appendChild(head);
@@ -1025,6 +1026,7 @@
         var row = document.createElement("div");
         row.className = "rate-row";
         var nm = document.createElement("span"); nm.className = "rname"; nm.textContent = p.name;
+        var ps = document.createElement("span"); ps.className = "rpos"; ps.textContent = (p.positions || []).join("/");
         var rv = document.createElement("input");
         rv.type = "number"; rv.className = "ratein";
         rv.min = String(FLOOR); rv.max = String(CEILING); rv.step = "1";
@@ -1033,7 +1035,7 @@
         rv.onchange = function(){ setRating(p.id, rv.value); };
         var gm = document.createElement("span"); gm.textContent = f.games;
         var wl = document.createElement("span"); wl.textContent = f.w + "-" + f.d + "-" + f.l;
-        row.appendChild(nm); row.appendChild(rv); row.appendChild(gm); row.appendChild(wl);
+        row.appendChild(nm); row.appendChild(ps); row.appendChild(rv); row.appendChild(gm); row.appendChild(wl);
         el.appendChild(row);
       });
   }
