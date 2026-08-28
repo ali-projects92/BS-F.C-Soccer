@@ -36,6 +36,13 @@ sharing on, follow **Setup: shared backend** in `README.md` — run
   player's star rating (`setStars`) and positions (`togglePosition`) there; this is the
   ONLY place editing exists.
 - **WhatsApp** is `shareWhatsApp()`, which just wraps the existing `asText()`.
+- **Trades** — pending swaps live in `trades` (`bsfc-trades` via the store). They apply
+  to the *shared* locked teams: `activeGame()` is `history[0]` while `result == null`.
+  `renderTrades()` draws the player-facing "Tonight's teams" + propose panel (id-based,
+  so it works on any device); `submitTrade()` adds a request; the organiser calls
+  `approveTrade()` (swaps the two ids between `history[0].a`/`.b`, mirrors into the
+  on-screen `teams` via `swapInTeams`, and drops now-stale requests) or `rejectTrade()`.
+  `lockIn()` clears old requests.
 - **Roster / seed migration** — the squad comes from `SEED`. To push a new roster to
   everyone, edit `SEED` and bump `SEED_VERSION`; `load()` then rebuilds the squad from
   `SEED` once per version, carrying over each existing player's rating / positions /

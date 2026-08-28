@@ -222,6 +222,24 @@
     padding:1px 2px;color:var(--chalk-faint)}
   .stars .star.on{color:var(--bib)}
   .stars .star:focus-visible{outline:2px solid var(--bib);outline-offset:2px;border-radius:3px}
+
+  /* trades — tonight's teams + propose-a-swap */
+  body.checkin #tradepanel{display:none!important}
+  .trade-teams{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px}
+  .trade-side{font-family:var(--display);text-transform:uppercase;font-size:16px;letter-spacing:.03em;
+    padding-bottom:6px;margin-bottom:8px;border-bottom:3px solid}
+  .trade-side.bibs{color:var(--bib);border-color:var(--bib)}
+  .trade-side.shirts{color:var(--shirt);border-color:var(--shirt)}
+  ol.trade-list{list-style:none;margin:0;padding:0}
+  ol.trade-list li{font-size:14px;padding:5px 0;border-bottom:1px solid var(--chalk-faint)}
+  select.selctl{flex:1 1 130px;min-width:0;background:rgba(0,0,0,.22);border:1px solid var(--chalk-faint);
+    border-radius:3px;color:var(--chalk);font-family:var(--body);font-size:15px;padding:11px 10px}
+  select.selctl:focus{outline:2px solid var(--bib);outline-offset:2px}
+  .trade-req{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;
+    padding:9px 0;border-bottom:1px solid var(--chalk-faint)}
+  .trade-req .trade-txt{font-family:var(--mono);font-size:12px;color:var(--chalk)}
+  .trade-acts{display:flex;gap:6px}
+  .trade-acts .btn{padding:7px 12px;font-size:12px;min-height:36px}
 </style>
 </head>
 <body>
@@ -301,6 +319,24 @@
     </div>
   </section>
 
+  <section class="panel" id="tradepanel" hidden aria-label="Tonight's teams and trades">
+    <div class="panel-head">
+      <div class="panel-title">Tonight's teams</div>
+      <div class="count" id="tradecount"></div>
+    </div>
+    <div class="trade-teams">
+      <div><div class="trade-side bibs">Bibs</div><ol class="trade-list" id="tradeA"></ol></div>
+      <div><div class="trade-side shirts">Shirts</div><ol class="trade-list" id="tradeB"></ol></div>
+    </div>
+    <p class="field-note">Propose a swap — the organiser has to approve it before teams change</p>
+    <div class="add-row">
+      <select id="tradeSelA" class="selctl" aria-label="Bibs player to swap out"></select>
+      <select id="tradeSelB" class="selctl" aria-label="Shirts player to swap out"></select>
+      <input type="text" id="tradeBy" placeholder="Your name (optional)" autocomplete="off" aria-label="Your name" />
+      <button class="btn" id="tradesubmit">Request swap</button>
+    </div>
+  </section>
+
   <section class="panel" id="adminpanel" hidden aria-label="Organiser">
     <div class="panel-head">
       <div class="panel-title">Organiser</div>
@@ -320,6 +356,9 @@
       <p class="field-note">Ratings — hidden from players · tap the stars (1–5) to rate · tap GK/DEF/MID/ATT to set a player's positions</p>
       <div id="ratingtable"></div>
 
+      <p class="field-note">Trade requests — swaps waiting for your OK</p>
+      <div id="admintrades"></div>
+
       <p class="legend" style="margin-top:20px">
         <button type="button" id="adminlockbtn">lock this screen</button>
       </p>
@@ -334,6 +373,7 @@
   var POSITIONS = ["GK","DEF","MID","ATT"];
   var SQUAD_KEY = "bsfc-squad";
   var HIST_KEY  = "bsfc-history";
+  var TRADE_KEY = "bsfc-trades";    // pending player-swap requests for tonight's teams
   var SEEDV_KEY = "bsfc-seedv";     // which roster version has been applied
   var SEED_VERSION = 2;             // bump this to push a new roster to every device
   var WEEKS_REMEMBERED = 4;
@@ -370,6 +410,7 @@
 
   var squad = [];        // {id, name, positions:[], playing}
   var history = [];      // [{date, a:[ids], b:[ids]}] newest first
+  var trades = [];       // [{id, aId, bId, by}] pending swaps on tonight's teams
   var shortlist = [];    // scored candidate draws
   var pick = 0;          // which shortlist entry is on screen
   var teams = null;      // {a:[{p,slot,flex}], b:[...]}
@@ -448,6 +489,7 @@
 
   function saveSquad(){ store.set(SQUAD_KEY, squad).catch(function(e){ console.warn("saveSquad", e); }); }
   function saveHistory(){ store.set(HIST_KEY, history).catch(function(e){ console.warn("saveHistory", e); }); }
+  function saveTrades(){ store.set(TRADE_KEY, trades).catch(function(e){ console.warn("saveTrades", e); }); }
 
   // Tidy up saved data — fill in defaults for older/partial records.
   function normalizeSquad(){
@@ -462,6 +504,7 @@
   async function load(){
     try { var s = await store.get(SQUAD_KEY); if (s && s.length) squad = s; } catch(e){ squad = []; }
     try { var h = await store.get(HIST_KEY); if (h) history = h; } catch(e){ history = []; }
+    try { var tr = await store.get(TRADE_KEY); if (tr) trades = tr; } catch(e){ trades = []; }
     var seedv = null;
     try { seedv = await store.get(SEEDV_KEY); } catch(e){ seedv = null; }
 
@@ -496,9 +539,11 @@
     try {
       var s = await store.get(SQUAD_KEY);
       var h = await store.get(HIST_KEY);
+      var tr = await store.get(TRADE_KEY);
       var changed = false;
       if (s && JSON.stringify(s) !== JSON.stringify(squad)) { squad = s; normalizeSquad(); changed = true; }
       if (h && JSON.stringify(h) !== JSON.stringify(history)) { history = h; changed = true; }
+      if (tr && JSON.stringify(tr) !== JSON.stringify(trades)) { trades = tr; changed = true; }
       if (changed) {
         render();
         if (isAdmin() && adminUnlocked()) renderAdmin();
@@ -696,7 +741,8 @@
     });
     history = history.slice(0, WEEKS_REMEMBERED);
     locked = true;
-    saveHistory(); render();
+    trades = [];                    // fresh teams — clear any old swap requests
+    saveHistory(); saveTrades(); render();
     toast("Locked in — tell it who won after the game");
   }
   function clearHistory(){
@@ -713,6 +759,117 @@
     scored = true;
     saveHistory(); render();
     toast("Result saved");
+  }
+
+  /* ---------- trades: propose a swap on tonight's (locked) teams; organiser approves.
+     Works on the shared id lists in history[0], so any device can see and propose. --- */
+  function activeGame(){
+    return (history.length && history[0] && history[0].result == null) ? history[0] : null;
+  }
+  function nameById(id){ var p = squad.find(function(x){ return x.id === id; }); return p ? p.name : "(gone)"; }
+
+  function renderTrades(){
+    var g = activeGame();
+    $("tradepanel").hidden = !g;
+    if (!g) return;
+    var fillList = function(el, ids){
+      el.innerHTML = "";
+      ids.forEach(function(id){ var li = document.createElement("li"); li.textContent = nameById(id); el.appendChild(li); });
+    };
+    fillList($("tradeA"), g.a); fillList($("tradeB"), g.b);
+    var fillSel = function(el, ids){
+      var prev = el.value;
+      el.innerHTML = "";
+      ids.forEach(function(id){
+        var o = document.createElement("option"); o.value = String(id); o.textContent = nameById(id); el.appendChild(o);
+      });
+      if (prev) el.value = prev;
+    };
+    fillSel($("tradeSelA"), g.a); fillSel($("tradeSelB"), g.b);
+    var n = trades.length;
+    $("tradecount").textContent = n
+      ? (n + (n === 1 ? " swap request pending" : " swap requests pending"))
+      : "swap a player? propose it below";
+  }
+  function submitTrade(){
+    var g = activeGame(); if (!g) return;
+    var a = parseInt($("tradeSelA").value, 10), b = parseInt($("tradeSelB").value, 10);
+    if (isNaN(a) || isNaN(b)){ toast("Pick a player from each side"); return; }
+    if (trades.some(function(t){ return t.aId === a && t.bId === b; })){ toast("That swap's already requested"); return; }
+    trades.push({ id: String(Date.now()) + "-" + Math.floor(Math.random() * 1000), aId: a, bId: b, by: ($("tradeBy").value || "").trim() });
+    saveTrades();
+    $("tradeBy").value = "";
+    renderTrades();
+    if (isAdmin() && adminUnlocked()) renderAdminTrades();
+    toast("Swap requested — the organiser decides");
+  }
+  // Keep the on-screen pitch consistent when a trade is approved (drawing device only).
+  function swapInTeams(aId, bId){
+    if (!teams) return;
+    var ai = -1, bi = -1;
+    teams.a.forEach(function(s, i){ if (s.p.id === aId) ai = i; });
+    teams.b.forEach(function(s, i){ if (s.p.id === bId) bi = i; });
+    if (ai < 0 || bi < 0) return;
+    var tmp = teams.a[ai]; teams.a[ai] = teams.b[bi]; teams.b[bi] = tmp;
+  }
+  function approveTrade(id){
+    var t = trades.find(function(x){ return x.id === id; });
+    var g = activeGame();
+    if (!t || !g){ trades = trades.filter(function(x){ return x.id !== id; }); saveTrades(); renderAdmin(); return; }
+    var ia = g.a.indexOf(t.aId), ib = g.b.indexOf(t.bId);
+    if (ia < 0 || ib < 0){                          // teams moved on — request is stale
+      trades = trades.filter(function(x){ return x.id !== id; });
+      saveTrades(); renderAdmin();
+      toast("That swap no longer fits the teams");
+      return;
+    }
+    g.a[ia] = t.bId; g.b[ib] = t.aId;               // swap sides in the shared teams
+    swapInTeams(t.aId, t.bId);
+    // drop this request and any others that referenced either player (now stale)
+    trades = trades.filter(function(x){
+      return x.aId !== t.aId && x.bId !== t.bId && x.aId !== t.bId && x.bId !== t.aId;
+    });
+    saveHistory(); saveTrades(); render();
+    if (isAdmin() && adminUnlocked()) renderAdmin();
+    toast("Swap approved — " + nameById(t.aId) + " ⇄ " + nameById(t.bId));
+  }
+  function rejectTrade(id){
+    trades = trades.filter(function(x){ return x.id !== id; });
+    saveTrades(); render();
+    if (isAdmin() && adminUnlocked()) renderAdmin();
+    toast("Swap rejected");
+  }
+  function renderAdminTrades(){
+    var el = $("admintrades");
+    if (!el) return;
+    el.innerHTML = "";
+    if (!activeGame()){
+      var none = document.createElement("p");
+      none.className = "empty"; none.style.marginTop = "6px";
+      none.textContent = "No locked teams yet — trades open once tonight's teams are locked in.";
+      el.appendChild(none);
+      return;
+    }
+    if (!trades.length){
+      var e = document.createElement("p");
+      e.className = "empty"; e.style.marginTop = "6px";
+      e.textContent = "No swap requests right now.";
+      el.appendChild(e);
+      return;
+    }
+    trades.forEach(function(t){
+      var row = document.createElement("div"); row.className = "trade-req";
+      var txt = document.createElement("span"); txt.className = "trade-txt";
+      txt.textContent = nameById(t.aId) + " (Bibs) ⇄ " + nameById(t.bId) + " (Shirts)" + (t.by ? " · " + t.by : "");
+      var acts = document.createElement("div"); acts.className = "trade-acts";
+      var ok = document.createElement("button"); ok.className = "btn"; ok.textContent = "Approve";
+      ok.onclick = function(){ approveTrade(t.id); };
+      var no = document.createElement("button"); no.className = "btn ghost"; no.textContent = "Reject";
+      no.onclick = function(){ rejectTrade(t.id); };
+      acts.appendChild(ok); acts.appendChild(no);
+      row.appendChild(txt); row.appendChild(acts);
+      el.appendChild(row);
+    });
   }
 
   /* ---------- render ---------- */
@@ -737,6 +894,8 @@
     var roster = $("roster");
     roster.innerHTML = "";
     squad.forEach(function(p){ roster.appendChild(chipFor(p)); });
+
+    renderTrades();                 // tonight's teams + swap requests (shared, id-based)
 
     $("pitch").hidden = !teams;
     $("legend").hidden = !teams;
@@ -928,6 +1087,7 @@
     $("admincontent").hidden = !ok;
     if (!ok){ $("admincode").value = ""; return; }
     renderRatings();
+    renderAdminTrades();
   }
 
   // Win / draw / loss for a player, read straight out of the recorded weeks.
@@ -1031,6 +1191,7 @@
   $("adminenter").onclick = tryUnlock;
   $("admincode").onkeydown = function(e){ if (e.key === "Enter") tryUnlock(); };
   $("adminlockbtn").onclick = lockAdmin;
+  $("tradesubmit").onclick = submitTrade;
   window.addEventListener("hashchange", applyMode);
 
   applyMode();

@@ -33,8 +33,11 @@ It already does:
 - **Player self check-in** — a stripped-down `#checkin` view where each player taps
   their own name to mark in/out for the week (see below).
 - **Send to WhatsApp** — one tap opens WhatsApp pre-filled with the formatted teams.
+- **Trades** — once teams are locked in, everyone sees "Tonight's teams" and anyone can
+  **propose a swap** (a Bibs player for a Shirts player). It's a request — the organiser
+  approves or rejects it on `#admin`, and approved swaps update the teams live.
 - **Organiser screen** — a private, passcode-gated `#admin` view (see below) to see and
-  manage the hidden balancing.
+  manage the hidden balancing and trade requests.
 
 ## Organiser screen (`#admin`)
 
@@ -47,6 +50,8 @@ per-player card with:
   Players never see it, and it only changes when you change the stars.
 - **Positions** — tap `GK/DEF/MID/ATT` to set each player's role(s), including combos
   like `GK/DEF` or `MID/ATT` (every player keeps at least one).
+- **Trade requests** — approve or reject player-swap proposals for tonight's teams;
+  an approved swap moves the two players across sides and updates the teams for everyone.
 
 **Privacy caveat (important):** the passcode is checked in the browser, and the ratings
 live in the shared data (as they always have — just hidden in the UI). So this stops
