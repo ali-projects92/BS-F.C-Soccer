@@ -21,9 +21,6 @@ sharing on, follow **Setup: shared backend** in `README.md` — run
   then flexibles fill the position furthest below target); `oneDraw`'s even split then
   lands each team on the shape. It's best-effort: if declared positions can't make the
   shape (e.g. too many single-position ATTs), it gets as close as it can.
-- **Chemistry** — `chemistry` = `[[idA,idB],…]` saved under `bsfc-chemistry` via the
-  same `store`. `buildShortlist` subtracts `CHEM_WEIGHT * (#pairs kept together)` from
-  the score, so it's a soft pull, balance still leads. Edited only on `#admin`.
 - **Draw internals** (`buildShortlist` split, `oneDraw`, repeat avoidance
   `teammateCosts`/`scoreDraw`, hidden rating update `recordResult`) are otherwise
   untouched — leave them alone.
@@ -31,9 +28,9 @@ sharing on, follow **Setup: shared backend** in `README.md` — run
   only hides UI, it adds no new mutation logic (reuses `toggle(id)`).
 - **Organiser screen** is `#admin` + `body.admin`, gated by the `ADMIN_CODE` constant
   (a light client-side lock — see the caveat in `README.md`). It renders the ratings +
-  W/D/L table (`renderRatings`, W/D/L derived from `history`) and the chemistry editor
-  (`renderChemistry`). The organiser can hand-edit a rating there (`setRating`, clamped
-  to `FLOOR..CEILING`); this is the ONLY place editing exists.
+  W/D/L table (`renderRatings`, W/D/L derived from `history`). The organiser can
+  hand-edit a rating there (`setRating`, clamped to `FLOOR..CEILING`) and set each
+  player's positions; this is the ONLY place editing exists.
 - **WhatsApp** is `shareWhatsApp()`, which just wraps the existing `asText()`.
 
 ## Hard rules (don't regress these)

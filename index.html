@@ -221,14 +221,6 @@
     border-radius:3px;color:var(--bib);font-family:var(--mono);font-weight:700;font-size:13px;
     padding:6px 6px;text-align:center}
   input.ratein:focus{outline:2px solid var(--bib);outline-offset:1px}
-  select.chemsel{flex:1 1 130px;min-width:0;background:rgba(0,0,0,.22);border:1px solid var(--chalk-faint);
-    border-radius:3px;color:var(--chalk);font-family:var(--body);font-size:15px;padding:11px 10px}
-  select.chemsel:focus{outline:2px solid var(--bib);outline-offset:2px}
-  .chempair{display:inline-flex;align-items:center;gap:8px;background:rgba(0,0,0,.2);
-    border:1px solid var(--chalk-faint);border-radius:999px;padding:6px 6px 6px 13px;font-size:14px}
-  .chempair .x{background:transparent;border:0;color:var(--chalk-dim);cursor:pointer;
-    font-size:16px;line-height:1;padding:6px 8px;border-radius:999px}
-  .chempair .x:hover{color:var(--warn)}
 </style>
 </head>
 <body>
@@ -320,20 +312,12 @@
         <input type="password" id="admincode" placeholder="Passcode" autocomplete="off" aria-label="Organiser passcode" />
         <button class="btn" id="adminenter">Unlock</button>
       </div>
-      <p class="empty">This screen is only for you — it shows the hidden balancing and lets you set chemistry. Players never see any of it.</p>
+      <p class="empty">This screen is only for you — it shows the hidden balancing. Players never see any of it.</p>
     </div>
 
     <div id="admincontent" hidden>
       <p class="field-note">Balancing — hidden from players · tap a rating to change it · tap GK/DEF/MID/ATT to set a player's positions</p>
       <div id="ratingtable"></div>
-
-      <p class="field-note">Chemistry — pairs the draw tries to keep on the same side</p>
-      <div class="add-row" id="chemadd">
-        <select id="chemA" class="chemsel" aria-label="First player"></select>
-        <select id="chemB" class="chemsel" aria-label="Second player"></select>
-        <button class="btn" id="chemaddbtn">Add pair</button>
-      </div>
-      <div id="chemlist" class="roster"></div>
 
       <p class="legend" style="margin-top:20px">
         <button type="button" id="adminlockbtn">lock this screen</button>
@@ -375,12 +359,7 @@
   // turnouts, and flexible players fill whatever the shape is short of.
   var FORMATION = { GK:1, DEF:3, MID:1, ATT:3 };
 
-  // Chemistry: pairs who play well together (set on #admin). The draw gets a gentle
-  // pull to keep them on the same side — a soft factor, balance still leads.
-  var CHEM_KEY = "bsfc-chemistry";
-  var CHEM_WEIGHT = 1.5;
-
-  // Organiser-only screen (ratings + chemistry) lives at #admin behind this code.
+  // Organiser-only screen (ratings) lives at #admin behind this code.
   // Change it to whatever you like. NOTE: this is a LIGHT lock on a public page — it
   // keeps casual players out, but the numbers still live in the shared data, so a
   // determined techie with the link could dig them out. Fine for a kickabout.
@@ -388,7 +367,6 @@
 
   var squad = [];        // {id, name, positions:[], playing}
   var history = [];      // [{date, a:[ids], b:[ids]}] newest first
-  var chemistry = [];    // [[idA, idB], ...] pairs to keep together (organiser-set)
   var shortlist = [];    // scored candidate draws
   var pick = 0;          // which shortlist entry is on screen
   var teams = null;      // {a:[{p,slot,flex}], b:[...]}
@@ -465,7 +443,6 @@
 
   function saveSquad(){ store.set(SQUAD_KEY, squad).catch(function(e){ console.warn("saveSquad", e); }); }
   function saveHistory(){ store.set(HIST_KEY, history).catch(function(e){ console.warn("saveHistory", e); }); }
-  function saveChemistry(){ store.set(CHEM_KEY, chemistry).catch(function(e){ console.warn("saveChemistry", e); }); }
 
   // Tidy up saved data — fill in defaults for older/partial records.
   function normalizeSquad(){
@@ -476,19 +453,10 @@
       if (p.id >= seq) seq = p.id + 1;
     });
   }
-  // Drop chemistry pairs that point at players who've since left the squad.
-  function cleanChemistry(){
-    var live = {};
-    squad.forEach(function(p){ live[p.id] = true; });
-    chemistry = (chemistry || []).filter(function(pr){
-      return pr && pr.length === 2 && live[pr[0]] && live[pr[1]];
-    });
-  }
 
   async function load(){
     try { var s = await store.get(SQUAD_KEY); if (s && s.length) squad = s; } catch(e){ squad = []; }
     try { var h = await store.get(HIST_KEY); if (h) history = h; } catch(e){ history = []; }
-    try { var c = await store.get(CHEM_KEY); if (c) chemistry = c; } catch(e){ chemistry = []; }
     if (!squad.length){
       squad = SEED.map(function(row){
         return { id: seq++, name: row.name, positions: row.positions, playing: true, rating: START };
@@ -508,24 +476,20 @@
       }
     }
     normalizeSquad();
-    cleanChemistry();
     render();
     store.watch(syncFromRemote);
   }
 
-  // Another device changed the shared squad/history/chemistry — pull it in and
-  // re-render, without disturbing a draw that's currently on screen.
+  // Another device changed the shared squad/history — pull it in and re-render,
+  // without disturbing a draw that's currently on screen.
   async function syncFromRemote(){
     try {
       var s = await store.get(SQUAD_KEY);
       var h = await store.get(HIST_KEY);
-      var c = await store.get(CHEM_KEY);
       var changed = false;
       if (s && JSON.stringify(s) !== JSON.stringify(squad)) { squad = s; normalizeSquad(); changed = true; }
       if (h && JSON.stringify(h) !== JSON.stringify(history)) { history = h; changed = true; }
-      if (c && JSON.stringify(c) !== JSON.stringify(chemistry)) { chemistry = c; changed = true; }
       if (changed) {
-        cleanChemistry();
         render();
         if (isAdmin() && adminUnlocked()) renderAdmin();
       }
@@ -590,19 +554,6 @@
           total += cost[pairKey(side[i].p.id, side[j].p.id)] || 0;
     });
     return total;
-  }
-
-  // How many chemistry pairs ended up together on the same side — the draw prefers more.
-  function chemistryScore(A, B){
-    if (!chemistry.length) return 0;
-    var side = {};
-    A.forEach(function(s){ side[s.p.id] = "a"; });
-    B.forEach(function(s){ side[s.p.id] = "b"; });
-    var n = 0;
-    chemistry.forEach(function(pair){
-      if (side[pair[0]] && side[pair[0]] === side[pair[1]]) n++;
-    });
-    return n;
   }
 
   /* ---------- the draw ---------- */
@@ -703,8 +654,7 @@
       seen[sig] = true;
       d.repeat = scoreDraw(d.a, d.b, cost);
       d.gap = Math.abs(strength(d.a) - strength(d.b));
-      d.chem = chemistryScore(d.a, d.b);
-      d.score = d.gap + REPEAT_WEIGHT * d.repeat - CHEM_WEIGHT * d.chem;
+      d.score = d.gap + REPEAT_WEIGHT * d.repeat;
       list.push(d);
     }
     list.sort(function(x, y){ return x.score - y.score; });
@@ -994,7 +944,6 @@
     $("admincontent").hidden = !ok;
     if (!ok){ $("admincode").value = ""; return; }
     renderRatings();
-    renderChemistry();
   }
 
   // Win / draw / loss for a player, read straight out of the recorded weeks.
@@ -1061,54 +1010,6 @@
     toast("Rating updated");
   }
 
-  var nameOf = function(id){ var p = squad.find(function(x){ return x.id === id; }); return p ? p.name : "(left)"; };
-  function fillChemSelects(){
-    var byName = squad.slice().sort(function(a, b){ return a.name.localeCompare(b.name); });
-    ["chemA","chemB"].forEach(function(id){
-      var sel = $(id), prev = sel.value;
-      sel.innerHTML = "";
-      byName.forEach(function(p){
-        var o = document.createElement("option");
-        o.value = String(p.id); o.textContent = p.name;
-        sel.appendChild(o);
-      });
-      if (prev) sel.value = prev;
-    });
-  }
-  function renderChemistry(){
-    fillChemSelects();
-    var el = $("chemlist");
-    el.innerHTML = "";
-    chemistry.forEach(function(pair, idx){
-      var d = document.createElement("div");
-      d.className = "chempair";
-      var t = document.createElement("span");
-      t.textContent = nameOf(pair[0]) + "  +  " + nameOf(pair[1]);
-      var x = document.createElement("button");
-      x.className = "x"; x.innerHTML = "&times;";
-      x.setAttribute("aria-label", "Remove pair");
-      x.onclick = function(){ chemistry.splice(idx, 1); saveChemistry(); renderChemistry(); };
-      d.appendChild(t); d.appendChild(x);
-      el.appendChild(d);
-    });
-    if (!chemistry.length){
-      var e = document.createElement("p");
-      e.className = "empty"; e.style.marginTop = "10px";
-      e.textContent = "No pairs yet. Pick two players and add a pair the draw should try to keep together.";
-      el.appendChild(e);
-    }
-  }
-  function addChemPair(){
-    var a = parseInt($("chemA").value, 10), b = parseInt($("chemB").value, 10);
-    if (isNaN(a) || isNaN(b) || a === b){ toast("Pick two different players"); return; }
-    var exists = chemistry.some(function(pr){
-      return (pr[0] === a && pr[1] === b) || (pr[0] === b && pr[1] === a);
-    });
-    if (exists){ toast("That pair's already in"); return; }
-    chemistry.push([a, b]); saveChemistry(); renderChemistry();
-    toast("Chemistry pair added");
-  }
-
   /* ---------- wiring ---------- */
   Array.prototype.forEach.call(document.querySelectorAll(".seg button"), function(b){
     b.onclick = function(){
@@ -1131,7 +1032,6 @@
   $("drawn").onclick = function(){ recordResult("d"); };
   $("adminenter").onclick = tryUnlock;
   $("admincode").onkeydown = function(e){ if (e.key === "Enter") tryUnlock(); };
-  $("chemaddbtn").onclick = addChemPair;
   $("adminlockbtn").onclick = lockAdmin;
   window.addEventListener("hashchange", applyMode);
 

@@ -19,9 +19,6 @@ It already does:
   flexible players fill whatever the shape is short of.
 - **Repeat avoidance** — remembers the last 4 weeks and prefers splits that
   don't reuse last week's pairings (recent weeks weighted heaviest).
-- **Chemistry** — the organiser can mark pairs who play well together (on the
-  `#admin` screen); the draw gets a gentle pull to keep them on the same side. It's
-  a soft factor — balance still leads.
 - **Draw again** — cycles the 10 best alternative splits.
 - **Hidden balancing** — every player has a hidden rating (never shown in the
   UI). After a game you tap who won (Bibs / Draw / Shirts) and an Elo-style
@@ -36,19 +33,21 @@ It already does:
 - **Player self check-in** — a stripped-down `#checkin` view where each player taps
   their own name to mark in/out for the week (see below).
 - **Send to WhatsApp** — one tap opens WhatsApp pre-filled with the formatted teams.
-- **Organiser screen** — a private, passcode-gated `#admin` view (see below) with a
-  read-only look at the hidden balancing and the chemistry editor.
+- **Organiser screen** — a private, passcode-gated `#admin` view (see below) to see and
+  manage the hidden balancing.
 
 ## Organiser screen (`#admin`)
 
 Add `#admin` to the URL (e.g. `…/BS-F.C-Soccer/#admin`) and enter the passcode set in
-`ADMIN_CODE` near the top of the script (default `bsfc-gaffer` — change it). It shows:
+`ADMIN_CODE` near the top of the script (default `bsfcsoccer` — change it). It shows a
+per-player card with:
 
-- **Balancing** — each player's hidden rating + games + W/D/L, sorted. Players never
-  see this. The organiser **can hand-edit a rating** here (tap the number; it's kept on
-  the same 25–75 scale the auto-Elo uses). Everywhere else, results are still the only
-  thing that move ratings — this override lives on `#admin` only.
-- **Chemistry** — add/remove pairs the draw should try to keep together.
+- **Rating** — each player's hidden rating + games + W/D/L, sorted. Players never see
+  this. The organiser **can hand-edit a rating** here (tap the number; it's kept on the
+  same 25–75 scale the auto-Elo uses). Everywhere else, results are still the only thing
+  that move ratings — this override lives on `#admin` only.
+- **Positions** — tap `GK/DEF/MID/ATT` to set each player's role(s), including combos
+  like `GK/DEF` or `MID/ATT` (every player keeps at least one).
 
 **Privacy caveat (important):** the passcode is checked in the browser, and the ratings
 live in the shared data (as they always have — just hidden in the UI). So this stops
