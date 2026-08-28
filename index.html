@@ -255,6 +255,24 @@
     </div>
   </header>
 
+  <section class="panel" id="tradepanel" hidden aria-label="Tonight's teams and trades">
+    <div class="panel-head">
+      <div class="panel-title">Tonight's teams</div>
+      <div class="count" id="tradecount"></div>
+    </div>
+    <div class="trade-teams">
+      <div><div class="trade-side bibs">Bibs</div><ol class="trade-list" id="tradeA"></ol></div>
+      <div><div class="trade-side shirts">Shirts</div><ol class="trade-list" id="tradeB"></ol></div>
+    </div>
+    <p class="field-note">Propose a swap — the organiser has to approve it before teams change</p>
+    <div class="add-row">
+      <select id="tradeSelA" class="selctl" aria-label="Bibs player to swap out"></select>
+      <select id="tradeSelB" class="selctl" aria-label="Shirts player to swap out"></select>
+      <input type="text" id="tradeBy" placeholder="Your name (optional)" autocomplete="off" aria-label="Your name" />
+      <button class="btn" id="tradesubmit">Request swap</button>
+    </div>
+  </section>
+
   <section class="panel" aria-labelledby="squad-title">
     <div class="panel-head">
       <div class="panel-title" id="squad-title">The squad</div>
@@ -316,24 +334,6 @@
       <button class="btn ghost" id="winA">Bibs won</button>
       <button class="btn ghost" id="drawn">Draw</button>
       <button class="btn ghost" id="winB">Shirts won</button>
-    </div>
-  </section>
-
-  <section class="panel" id="tradepanel" hidden aria-label="Tonight's teams and trades">
-    <div class="panel-head">
-      <div class="panel-title">Tonight's teams</div>
-      <div class="count" id="tradecount"></div>
-    </div>
-    <div class="trade-teams">
-      <div><div class="trade-side bibs">Bibs</div><ol class="trade-list" id="tradeA"></ol></div>
-      <div><div class="trade-side shirts">Shirts</div><ol class="trade-list" id="tradeB"></ol></div>
-    </div>
-    <p class="field-note">Propose a swap — the organiser has to approve it before teams change</p>
-    <div class="add-row">
-      <select id="tradeSelA" class="selctl" aria-label="Bibs player to swap out"></select>
-      <select id="tradeSelB" class="selctl" aria-label="Shirts player to swap out"></select>
-      <input type="text" id="tradeBy" placeholder="Your name (optional)" autocomplete="off" aria-label="Your name" />
-      <button class="btn" id="tradesubmit">Request swap</button>
     </div>
   </section>
 
