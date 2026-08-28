@@ -217,10 +217,11 @@
     white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .rate-top .rmeta{flex:none;font-family:var(--mono);font-size:11px;color:var(--chalk-dim)}
   .rate-card .mini{margin-top:8px;flex-wrap:wrap}
-  input.ratein{flex:none;width:58px;background:rgba(0,0,0,.22);border:1px solid var(--chalk-faint);
-    border-radius:3px;color:var(--bib);font-family:var(--mono);font-weight:700;font-size:13px;
-    padding:6px 6px;text-align:center}
-  input.ratein:focus{outline:2px solid var(--bib);outline-offset:1px}
+  .rate-top .stars{flex:none;display:flex;gap:1px}
+  .stars .star{background:transparent;border:0;cursor:pointer;font-size:21px;line-height:1;
+    padding:1px 2px;color:var(--chalk-faint)}
+  .stars .star.on{color:var(--bib)}
+  .stars .star:focus-visible{outline:2px solid var(--bib);outline-offset:2px;border-radius:3px}
 </style>
 </head>
 <body>
@@ -316,7 +317,7 @@
     </div>
 
     <div id="admincontent" hidden>
-      <p class="field-note">Balancing — hidden from players · tap a rating to change it · tap GK/DEF/MID/ATT to set a player's positions</p>
+      <p class="field-note">Ratings — hidden from players · tap the stars (1–5) to rate · tap GK/DEF/MID/ATT to set a player's positions</p>
       <div id="ratingtable"></div>
 
       <p class="legend" style="margin-top:20px">
@@ -704,32 +705,14 @@
     toast("Team history cleared");
   }
 
-  /* ---------- results move the hidden ratings ---------- */
-  var resultsRecorded = function(){
-    return history.filter(function(w){ return w.result; }).length;
-  };
-
-  // Underdog wins move the needle more; favourites winning barely moves it.
+  /* ---------- results are logged for the record only ----------
+     Ratings are set by the organiser as stars (#admin) and never move on their own. */
   function recordResult(outcome){                 // 'a' | 'b' | 'd'
     if (!teams || scored) return;
-    var avgA = strength(teams.a) / teams.a.length;
-    var avgB = strength(teams.b) / teams.b.length;
-    var expectedA = 1 / (1 + Math.pow(10, (avgB - avgA) / 10));
-    var actualA = outcome === "a" ? 1 : (outcome === "b" ? 0 : 0.5);
-    var delta = K * (actualA - expectedA);
-    var clamp = function(v){ return Math.max(FLOOR, Math.min(CEILING, v)); };
-    teams.a.forEach(function(s){ s.p.rating = clamp((s.p.rating || START) + delta); });
-    teams.b.forEach(function(s){ s.p.rating = clamp((s.p.rating || START) - delta); });
     if (history.length && !history[0].result) history[0].result = outcome;
     scored = true;
-    saveSquad(); saveHistory(); render();
-    toast("Result recorded — next week's draw will use it");
-  }
-  function resetRatings(){
-    squad.forEach(function(p){ p.rating = START; });
-    history.forEach(function(w){ w.result = null; });
-    saveSquad(); saveHistory(); render();
-    toast("Balancing reset — everyone level again");
+    saveHistory(); render();
+    toast("Result saved");
   }
 
   /* ---------- render ---------- */
@@ -748,8 +731,8 @@
     $("result").hidden = !locked;
     ["winA","winB","drawn"].forEach(function(id){ $(id).disabled = scored; });
     $("resultblurb").textContent = scored
-      ? "Recorded. The teams shift a little next Friday because of it."
-      : "Tap who won. That's the only thing that shapes the balancing — no one rates anybody, and the numbers stay out of sight.";
+      ? "Result saved — just for the record (W/D/L)."
+      : "Tap who won — it's logged for the record. Team balance comes from the organiser's star ratings, which stay out of sight.";
 
     var roster = $("roster");
     roster.innerHTML = "";
@@ -776,29 +759,21 @@
     l1.textContent = "+ marks a player who can cover other positions too";
     el.appendChild(l1);
 
-    var n = resultsRecorded();
     var l2 = document.createElement("div");
-    l2.textContent = n < SETTLING
-      ? "Balancing is still learning the group (" + n + " of " + SETTLING +
-        " results in) — for now this is close to a straight random draw"
-      : (teams.gap < 2 ? "Sides look evenly matched"
-                       : (teams.gap < 5 ? "Sides look close enough"
-                                        : "Best balance available from tonight's names"));
+    l2.textContent = teams.gap < 8 ? "Sides look evenly matched"
+                   : (teams.gap < 20 ? "Sides look close enough"
+                                     : "Best balance available from tonight's names");
     el.appendChild(l2);
 
     var l3 = document.createElement("div");
     l3.textContent = history.length
       ? "Avoiding pairings from the last " + history.length + (history.length === 1 ? " week · " : " weeks · ")
-      : "No past weeks stored yet — lock tonight in and next week's draw will avoid repeating it · ";
+      : "No past weeks stored yet — lock tonight in and next week's draw will avoid repeating it";
     if (history.length){
       var b1 = document.createElement("button");
       b1.type = "button"; b1.textContent = "clear history"; b1.onclick = clearHistory;
       l3.appendChild(b1);
-      l3.appendChild(document.createTextNode(" · "));
     }
-    var b2 = document.createElement("button");
-    b2.type = "button"; b2.textContent = "reset balancing"; b2.onclick = resetRatings;
-    l3.appendChild(b2);
     el.appendChild(l3);
   }
 
@@ -979,15 +954,25 @@
         var top = document.createElement("div");
         top.className = "rate-top";
         var nm = document.createElement("span"); nm.className = "rname"; nm.textContent = p.name;
-        var rv = document.createElement("input");
-        rv.type = "number"; rv.className = "ratein";
-        rv.min = String(FLOOR); rv.max = String(CEILING); rv.step = "1";
-        rv.value = String(Math.round(p.rating || START));
-        rv.setAttribute("aria-label", "Rating for " + p.name);
-        rv.onchange = function(){ setRating(p.id, rv.value); };
+        var stars = document.createElement("div");
+        stars.className = "stars";
+        stars.setAttribute("role", "group");
+        stars.setAttribute("aria-label", "Rating for " + p.name);
+        var cur = ratingToStars(p.rating);
+        for (var si = 1; si <= 5; si++){
+          (function(n){
+            var b = document.createElement("button");
+            b.type = "button";
+            b.className = "star" + (n <= cur ? " on" : "");
+            b.textContent = n <= cur ? "★" : "☆";
+            b.setAttribute("aria-label", n + (n === 1 ? " star" : " stars") + " for " + p.name);
+            b.onclick = function(){ setStars(p.id, n); };
+            stars.appendChild(b);
+          })(si);
+        }
         var meta = document.createElement("span"); meta.className = "rmeta";
         meta.textContent = f.games + (f.games === 1 ? " game · " : " games · ") + f.w + "-" + f.d + "-" + f.l;
-        top.appendChild(nm); top.appendChild(rv); top.appendChild(meta);
+        top.appendChild(nm); top.appendChild(stars); top.appendChild(meta);
 
         // Tappable position toggles — set roles (incl. combos like GK/DEF, MID/ATT).
         var mini = document.createElement("div");
@@ -1006,17 +991,21 @@
       });
   }
 
-  // Organiser-only manual override. Kept on the same scale the auto-Elo uses
-  // (FLOOR..CEILING) so the draw maths stay sane. Players can't reach this.
-  function setRating(id, val){
+  // 1–5 star ratings (organiser-set, #admin only). Stars map onto the internal
+  // strength the draw balances on: 1★=30 … 3★=50 … 5★=70. Ratings only change when
+  // the organiser taps a different star — results never move them.
+  var STAR_MIN = 30, STAR_STEP = 10;
+  function starToRating(s){ return STAR_MIN + (s - 1) * STAR_STEP; }
+  function ratingToStars(r){
+    return Math.max(1, Math.min(5, Math.round(((typeof r === "number" ? r : START) - STAR_MIN) / STAR_STEP) + 1));
+  }
+  function setStars(id, s){
     var p = squad.find(function(x){ return x.id === id; });
     if (!p){ return; }
-    var v = parseFloat(val);
-    if (isNaN(v)){ renderRatings(); return; }
-    p.rating = Math.max(FLOOR, Math.min(CEILING, v));
+    p.rating = starToRating(s);
     saveSquad();
     renderRatings();
-    toast("Rating updated");
+    toast(s + (s === 1 ? " star" : " stars"));
   }
 
   /* ---------- wiring ---------- */

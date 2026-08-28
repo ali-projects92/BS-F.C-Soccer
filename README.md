@@ -20,11 +20,11 @@ It already does:
 - **Repeat avoidance** — remembers the last 4 weeks and prefers splits that
   don't reuse last week's pairings (recent weeks weighted heaviest).
 - **Draw again** — cycles the 10 best alternative splits.
-- **Hidden balancing** — every player has a hidden rating (never shown in the
-  UI). After a game you tap who won (Bibs / Draw / Shirts) and an Elo-style
-  update nudges ratings; underdog wins move more. The draw uses these to pick
-  the most even split, with freshness as the tiebreak. No manual rating input
-  exists by design — you can't tilt it.
+- **Hidden balancing** — every player has a hidden rating the draw uses to pick the
+  most even split (freshness as the tiebreak). The organiser sets it as **1–5 stars**
+  on the `#admin` screen; players never see it. Tapping who won (Bibs / Draw / Shirts)
+  after a game is logged for W/D/L but does **not** change ratings — they only move when
+  the organiser changes the stars.
 - **This week's squad is pre-seeded** (see `SEED` / `SEED_WEEK` near the top of
   the script) with the real 16 players and the current split.
 - **Shared storage** — with a Supabase project configured, the whole group shares
@@ -42,10 +42,9 @@ Add `#admin` to the URL (e.g. `…/BS-F.C-Soccer/#admin`) and enter the passcode
 `ADMIN_CODE` near the top of the script (default `bsfcsoccer` — change it). It shows a
 per-player card with:
 
-- **Rating** — each player's hidden rating + games + W/D/L, sorted. Players never see
-  this. The organiser **can hand-edit a rating** here (tap the number; it's kept on the
-  same 25–75 scale the auto-Elo uses). Everywhere else, results are still the only thing
-  that move ratings — this override lives on `#admin` only.
+- **Rating** — tap **1–5 stars** to rate each player (⭐ weakest … ⭐⭐⭐⭐⭐ strongest;
+  internally 30→70, feeding the balanced-draw maths). Shown with games + W/D/L, sorted.
+  Players never see it, and it only changes when you change the stars.
 - **Positions** — tap `GK/DEF/MID/ATT` to set each player's role(s), including combos
   like `GK/DEF` or `MID/ATT` (every player keeps at least one).
 
