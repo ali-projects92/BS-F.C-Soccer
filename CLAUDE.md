@@ -32,6 +32,11 @@ sharing on, follow **Setup: shared backend** in `README.md` — run
   hand-edit a rating there (`setRating`, clamped to `FLOOR..CEILING`) and set each
   player's positions; this is the ONLY place editing exists.
 - **WhatsApp** is `shareWhatsApp()`, which just wraps the existing `asText()`.
+- **Roster / seed migration** — the squad comes from `SEED`. To push a new roster to
+  everyone, edit `SEED` and bump `SEED_VERSION`; `load()` then rebuilds the squad from
+  `SEED` once per version, carrying over each existing player's rating / positions /
+  in-out **by name**, clears `history` (records reset), and stores the applied version
+  under `bsfc-seedv`. It propagates to all devices through the shared store.
 
 ## Hard rules (don't regress these)
 - Player ratings are HIDDEN from players. Never render a number in the player UI. The

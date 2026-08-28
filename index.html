@@ -333,6 +333,8 @@
   var POSITIONS = ["GK","DEF","MID","ATT"];
   var SQUAD_KEY = "bsfc-squad";
   var HIST_KEY  = "bsfc-history";
+  var SEEDV_KEY = "bsfc-seedv";     // which roster version has been applied
+  var SEED_VERSION = 2;             // bump this to push a new roster to every device
   var WEEKS_REMEMBERED = 4;
   var WEIGHTS = [4,3,2,1];          // most recent week counts heaviest
   var CANDIDATES = 320;             // draws generated, best one wins
@@ -376,23 +378,25 @@
   var seq = 0;
 
 
-  // This week's squad, pre-loaded. Only used the first time the app opens —
-  // once anything is saved, this is ignored.
+  // The roster. Loaded the first time the app opens, and re-applied whenever
+  // SEED_VERSION is bumped (see load() — ratings/positions for names already in the
+  // squad are carried over). Positions here are just sensible starting roles; the
+  // organiser fine-tunes them on #admin.
   var SEED = [
-    { name:"Faizzy",  positions:["GK"]  }, { name:"Mohsin", positions:["GK"]  },
-    { name:"Anas",    positions:["DEF"] }, { name:"Farhan", positions:["DEF"] },
-    { name:"Maroof",  positions:["DEF"] }, { name:"Fawad",  positions:["DEF"] },
-    { name:"Abban",   positions:["DEF"] }, { name:"Talha",  positions:["DEF"] },
-    { name:"Onan",    positions:["MID"] }, { name:"Ashal",  positions:["MID"] },
-    { name:"Thakur",  positions:["MID"] }, { name:"Omair",  positions:["MID"] },
-    { name:"Daniyal", positions:["ATT"] }, { name:"Irfan",  positions:["ATT"] },
-    { name:"Amir",    positions:["ATT"] }, { name:"Jawad",  positions:["ATT"] }
+    { name:"Mashood",  positions:["MID"] }, { name:"Maroof",   positions:["DEF"] },
+    { name:"Daniyal",  positions:["ATT"] }, { name:"Talha",    positions:["DEF"] },
+    { name:"Bilal",    positions:["MID"] }, { name:"Farhan",   positions:["DEF"] },
+    { name:"Faizzy",   positions:["GK"]  }, { name:"Takhur",   positions:["MID"] },
+    { name:"Ashhal",   positions:["MID"] }, { name:"Amir",     positions:["ATT"] },
+    { name:"Fawad",    positions:["DEF"] }, { name:"Mohsin",   positions:["GK"]  },
+    { name:"Irfan",    positions:["ATT"] }, { name:"Ismail",   positions:["MID"] },
+    { name:"Abdullah", positions:["MID"] }, { name:"Robin",    positions:["MID"] },
+    { name:"Abban",    positions:["DEF"] }, { name:"Chuchu",   positions:["MID"] },
+    { name:"Tahir",    positions:["MID"] }, { name:"Rafay V",  positions:["MID"] },
+    { name:"Jawad",    positions:["ATT"] }, { name:"Anas",     positions:["DEF"] },
+    { name:"Zeaad",    positions:["MID"] }, { name:"Raffay A", positions:["MID"] },
+    { name:"Zayd",     positions:["MID"] }, { name:"Arsalan",  positions:["MID"] }
   ];
-  // This week's split, so next Friday's draw already knows to mix it up.
-  var SEED_WEEK = {
-    a: ["Faizzy","Anas","Maroof","Abban","Onan","Thakur","Daniyal","Amir"],
-    b: ["Mohsin","Farhan","Fawad","Talha","Ashal","Omair","Irfan","Jawad"]
-  };
 
   var $ = function(id){ return document.getElementById(id); };
   var byOrder = function(list){ return POSITIONS.filter(function(c){ return list.indexOf(c) > -1; }); };
@@ -457,23 +461,28 @@
   async function load(){
     try { var s = await store.get(SQUAD_KEY); if (s && s.length) squad = s; } catch(e){ squad = []; }
     try { var h = await store.get(HIST_KEY); if (h) history = h; } catch(e){ history = []; }
-    if (!squad.length){
+    var seedv = null;
+    try { seedv = await store.get(SEEDV_KEY); } catch(e){ seedv = null; }
+
+    // First run (empty) OR a bumped roster: (re)build the squad from SEED, carrying
+    // over each existing player's rating / positions / in-out by name. Runs once per
+    // version, then the new roster propagates to every device through the store.
+    if (!squad.length || seedv !== SEED_VERSION){
+      var prev = {};
+      squad.forEach(function(p){ prev[String(p.name).trim().toLowerCase()] = p; });
       squad = SEED.map(function(row){
-        return { id: seq++, name: row.name, positions: row.positions, playing: true, rating: START };
-      });
-      saveSquad();
-      if (!history.length){
-        var idOf = function(nm){
-          var p = squad.find(function(x){ return x.name === nm; });
-          return p ? p.id : -1;
+        var old = prev[String(row.name).trim().toLowerCase()];
+        return {
+          id: seq++,
+          name: row.name,
+          positions: (old && old.positions && old.positions.length) ? old.positions.slice() : row.positions.slice(),
+          playing: old ? old.playing : true,
+          rating: (old && typeof old.rating === "number") ? old.rating : START
         };
-        history = [{
-          date: new Date().toISOString().slice(0, 10),
-          a: SEED_WEEK.a.map(idOf), b: SEED_WEEK.b.map(idOf),
-          result: null
-        }];
-        saveHistory();
-      }
+      });
+      history = [];                 // roster changed — start the records fresh
+      saveSquad(); saveHistory();
+      store.set(SEEDV_KEY, SEED_VERSION).catch(function(e){ console.warn("seedv", e); });
     }
     normalizeSquad();
     render();
