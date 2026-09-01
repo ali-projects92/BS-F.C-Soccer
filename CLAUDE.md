@@ -61,3 +61,8 @@ sharing on, follow **Setup: shared backend** in `README.md` — run
   concurrent per-phone edits ever clash, split it into proper `players` / `weeks`
   tables — that's the only reason to touch the storage layer again.
 - Deploy is zero-config static (`vercel.json` / `netlify.toml` included).
+- **Auto-update** — the deploy workflow stamps `__APP_VERSION__` in `index.html` with
+  the commit sha (a `sed` step). `checkForUpdate()` fetches the freshest page
+  (`cache:'no-store'`), and if the live sha differs it reloads to `?v=<sha>` — so users
+  get new builds without a manual hard-refresh. It no-ops locally (placeholder unstamped)
+  and guards against reload loops via `sessionStorage`.

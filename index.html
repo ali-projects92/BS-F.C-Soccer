@@ -380,6 +380,7 @@
   var WEIGHTS = [4,3,2,1];          // most recent week counts heaviest
   var CANDIDATES = 320;             // draws generated, best one wins
   var SHORTLIST = 10;               // kept for the "draw again" cycle
+  var APP_VERSION = "__APP_VERSION__";   // stamped with the commit sha at deploy time
 
   /* ---------- shared backend config ----------
      Paste your Supabase project URL + anon (public) key below to give the whole
@@ -1194,8 +1195,34 @@
   $("tradesubmit").onclick = submitTrade;
   window.addEventListener("hashchange", applyMode);
 
+  /* ---------- auto-update ----------
+     Each deploy stamps APP_VERSION with the commit sha. This fetches the freshest
+     copy of the page (bypassing the cache), and if a newer build is live it reloads
+     to it — so nobody has to hard-refresh or add ?v=. Runs on open and whenever the
+     tab is brought back into focus. */
+  function checkForUpdate(){
+    if (APP_VERSION.indexOf("__APP") === 0) return;         // unstamped (local) — skip
+    fetch(location.pathname + "?_v=" + Date.now(), { cache: "no-store" })
+      .then(function(r){ return r.ok ? r.text() : null; })
+      .then(function(html){
+        if (!html) return;
+        var m = html.match(/APP_VERSION\s*=\s*"([^"]+)"/);
+        if (!m) return;
+        var latest = m[1];
+        if (!latest || latest === APP_VERSION || latest.indexOf("__APP") === 0) return;
+        var tried = null;
+        try { tried = sessionStorage.getItem("bsfc-updatedto"); } catch(e){}
+        if (tried === latest) return;                        // already reloaded to this — don't loop
+        try { sessionStorage.setItem("bsfc-updatedto", latest); } catch(e){}
+        location.replace(location.pathname + "?v=" + latest.slice(0, 8) + location.hash);
+      })
+      .catch(function(){});
+  }
+  document.addEventListener("visibilitychange", function(){ if (!document.hidden) checkForUpdate(); });
+
   applyMode();
   load();
+  checkForUpdate();
 })();
 </script>
 </body>
