@@ -240,6 +240,13 @@
   .trade-req .trade-txt{font-family:var(--mono);font-size:12px;color:var(--chalk)}
   .trade-acts{display:flex;gap:6px}
   .trade-acts .btn{padding:7px 12px;font-size:12px;min-height:36px}
+  .vote{display:flex;gap:6px}
+  .vote button{background:rgba(0,0,0,.2);border:1px solid var(--chalk-faint);border-radius:999px;
+    color:var(--chalk-dim);font-family:var(--mono);font-size:13px;font-weight:700;cursor:pointer;
+    padding:6px 11px;min-height:36px}
+  .vote button.on{background:var(--bib);border-color:var(--bib);color:var(--pitch)}
+  .vote button.no.on{background:var(--warn);border-color:var(--warn);color:var(--pitch)}
+  .vote button:focus-visible{outline:2px solid var(--bib);outline-offset:2px}
 </style>
 </head>
 <body>
@@ -264,6 +271,8 @@
       <div><div class="trade-side bibs">Bibs</div><ol class="trade-list" id="tradeA"></ol></div>
       <div><div class="trade-side shirts">Shirts</div><ol class="trade-list" id="tradeB"></ol></div>
     </div>
+    <p class="field-note" id="tradereqlabel" hidden>Swap requests — vote 👍 / 👎 (the organiser has the final say)</p>
+    <div id="traderequests"></div>
     <p class="field-note">Propose a swap — the organiser has to approve it before teams change</p>
     <div class="add-row">
       <select id="tradeSelA" class="selctl" aria-label="Bibs player to swap out"></select>
@@ -769,6 +778,33 @@
   }
   function nameById(id){ var p = squad.find(function(x){ return x.id === id; }); return p ? p.name : "(gone)"; }
 
+  // One vote per device: a stable random id kept in localStorage.
+  function voterId(){
+    var v = null;
+    try { v = localStorage.getItem("bsfc-voter"); } catch(e){}
+    if (!v){
+      v = "v" + Date.now() + Math.floor(Math.random() * 1e6);
+      try { localStorage.setItem("bsfc-voter", v); } catch(e){}
+    }
+    return v;
+  }
+  function tallyOf(t){
+    var y = 0, n = 0, v = t.votes || {};
+    for (var k in v){ if (v[k] === "y") y++; else if (v[k] === "n") n++; }
+    return { y: y, n: n };
+  }
+  function voteTrade(id, choice){
+    var t = trades.find(function(x){ return x.id === id; });
+    if (!t) return;
+    if (!t.votes) t.votes = {};
+    var me = voterId();
+    if (t.votes[me] === choice) delete t.votes[me];   // tap your current vote again to undo
+    else t.votes[me] = choice;
+    saveTrades();
+    renderTrades();
+    if (isAdmin() && adminUnlocked()) renderAdminTrades();
+  }
+
   function renderTrades(){
     var g = activeGame();
     $("tradepanel").hidden = !g;
@@ -791,6 +827,32 @@
     $("tradecount").textContent = n
       ? (n + (n === 1 ? " swap request pending" : " swap requests pending"))
       : "swap a player? propose it below";
+
+    // Pending requests, each with a 👍/👎 vote tally (organiser still decides).
+    var reqs = $("traderequests");
+    reqs.innerHTML = "";
+    $("tradereqlabel").hidden = !n;
+    var me = voterId();
+    trades.forEach(function(t){
+      var tal = tallyOf(t), mine = (t.votes || {})[me];
+      var row = document.createElement("div"); row.className = "trade-req";
+      var txt = document.createElement("span"); txt.className = "trade-txt";
+      txt.textContent = nameById(t.aId) + " ⇄ " + nameById(t.bId) + (t.by ? " · " + t.by : "");
+      var vote = document.createElement("div"); vote.className = "vote";
+      var yes = document.createElement("button");
+      yes.className = "yes" + (mine === "y" ? " on" : "");
+      yes.textContent = "👍 " + tal.y;
+      yes.setAttribute("aria-label", "Vote yes for " + nameById(t.aId) + " and " + nameById(t.bId));
+      yes.onclick = function(){ voteTrade(t.id, "y"); };
+      var no = document.createElement("button");
+      no.className = "no" + (mine === "n" ? " on" : "");
+      no.textContent = "👎 " + tal.n;
+      no.setAttribute("aria-label", "Vote no for " + nameById(t.aId) + " and " + nameById(t.bId));
+      no.onclick = function(){ voteTrade(t.id, "n"); };
+      vote.appendChild(yes); vote.appendChild(no);
+      row.appendChild(txt); row.appendChild(vote);
+      reqs.appendChild(row);
+    });
   }
   function submitTrade(){
     var g = activeGame(); if (!g) return;
@@ -860,8 +922,10 @@
     }
     trades.forEach(function(t){
       var row = document.createElement("div"); row.className = "trade-req";
+      var tal = tallyOf(t);
       var txt = document.createElement("span"); txt.className = "trade-txt";
-      txt.textContent = nameById(t.aId) + " (Bibs) ⇄ " + nameById(t.bId) + " (Shirts)" + (t.by ? " · " + t.by : "");
+      txt.textContent = nameById(t.aId) + " (Bibs) ⇄ " + nameById(t.bId) + " (Shirts)"
+        + " · 👍" + tal.y + " 👎" + tal.n + (t.by ? " · " + t.by : "");
       var acts = document.createElement("div"); acts.className = "trade-acts";
       var ok = document.createElement("button"); ok.className = "btn"; ok.textContent = "Approve";
       ok.onclick = function(){ approveTrade(t.id); };
