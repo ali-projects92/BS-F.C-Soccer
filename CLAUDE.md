@@ -45,6 +45,9 @@ sharing on, follow **Setup: shared backend** in `README.md` — run
   organiser still decides: `approveTrade()` (swaps the two ids between `history[0].a`/`.b`,
   mirrors into the on-screen `teams` via `swapInTeams`, drops now-stale requests) or
   `rejectTrade()`. `lockIn()` clears old requests.
+  - **Sub** (`#admin`) — `doSub()` swaps a player on the locked teams for a bench player
+    (`benchIds()` = squad not in `history[0]`); edits `history[0]`, mirrors into `teams`
+    via `subInTeams`, marks the sub-in playing, and drops now-stale trade requests.
 - **Roster / seed migration** — the squad comes from `SEED`. To push a new roster to
   everyone, edit `SEED` and bump `SEED_VERSION`; `load()` then rebuilds the squad from
   `SEED` once per version, carrying over each existing player's rating / positions /

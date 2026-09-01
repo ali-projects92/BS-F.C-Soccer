@@ -54,6 +54,9 @@ per-player card with:
 - **Trade requests** — approve or reject player-swap proposals for tonight's teams (each
   shows the group's 👍/👎 tally to inform your call); an approved swap moves the two
   players across sides and updates the teams for everyone.
+- **Sub a player** — swap someone on a team for a bench player (anyone in the squad not
+  in tonight's teams). Handy for late drop-outs or fixing a lineup without re-drawing;
+  updates the teams live for everyone.
 
 **Privacy caveat (important):** the passcode is checked in the browser, and the ratings
 live in the shared data (as they always have — just hidden in the UI). So this stops

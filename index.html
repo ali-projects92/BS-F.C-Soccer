@@ -368,6 +368,13 @@
       <p class="field-note">Trade requests — swaps waiting for your OK</p>
       <div id="admintrades"></div>
 
+      <p class="field-note">Sub a player — swap someone on a team for a bench player</p>
+      <div class="add-row" id="subrow">
+        <select id="subOut" class="selctl" aria-label="Player to take out"></select>
+        <select id="subIn" class="selctl" aria-label="Bench player to bring in"></select>
+        <button class="btn" id="subbtn">Sub in</button>
+      </div>
+
       <p class="legend" style="margin-top:20px">
         <button type="button" id="adminlockbtn">lock this screen</button>
       </p>
@@ -937,6 +944,56 @@
     });
   }
 
+  /* ---------- organiser substitution: swap a bench player onto a locked team ---------- */
+  function benchIds(){
+    var g = activeGame(); if (!g) return [];
+    var on = {}; g.a.concat(g.b).forEach(function(id){ on[id] = true; });
+    return squad.filter(function(p){ return !on[p.id]; }).map(function(p){ return p.id; });
+  }
+  function renderAdminSub(){
+    var outSel = $("subOut"), inSel = $("subIn"), btn = $("subbtn");
+    if (!outSel || !inSel) return;
+    var g = activeGame();
+    outSel.innerHTML = ""; inSel.innerHTML = "";
+    var opt = function(sel, id, label){ var o = document.createElement("option"); o.value = String(id); o.textContent = label; sel.appendChild(o); };
+    if (!g){
+      opt(inSel, "", "lock teams in first"); btn.disabled = true; outSel.disabled = true; inSel.disabled = true;
+      return;
+    }
+    btn.disabled = false; outSel.disabled = false; inSel.disabled = false;
+    g.a.forEach(function(id){ opt(outSel, id, nameById(id) + " (Bibs)"); });
+    g.b.forEach(function(id){ opt(outSel, id, nameById(id) + " (Shirts)"); });
+    var bench = benchIds();
+    if (!bench.length){ opt(inSel, "", "(nobody on the bench)"); btn.disabled = true; }
+    else bench.forEach(function(id){ opt(inSel, id, nameById(id)); });
+  }
+  // Keep the on-screen pitch consistent when a sub is made (drawing device only).
+  function subInTeams(outId, inId){
+    if (!teams) return;
+    var pin = squad.find(function(x){ return x.id === inId; }); if (!pin) return;
+    var repl = function(arr){
+      for (var i = 0; i < arr.length; i++){
+        if (arr[i].p.id === outId){ arr[i] = { p: pin, slot: arr[i].slot, flex: arr[i].flex }; return true; }
+      }
+      return false;
+    };
+    if (!repl(teams.a)) repl(teams.b);
+  }
+  function doSub(){
+    var g = activeGame(); if (!g) return;
+    var outId = parseInt($("subOut").value, 10), inId = parseInt($("subIn").value, 10);
+    if (isNaN(outId) || isNaN(inId)){ toast("Pick who's coming off and who's coming on"); return; }
+    if (outId === inId){ toast("Pick two different players"); return; }
+    var ia = g.a.indexOf(outId), ib = g.b.indexOf(outId);
+    if (ia > -1) g.a[ia] = inId; else if (ib > -1) g.b[ib] = inId; else { toast("That player isn't on a team"); return; }
+    var pin = squad.find(function(x){ return x.id === inId; }); if (pin) pin.playing = true;
+    subInTeams(outId, inId);
+    trades = trades.filter(function(t){ return t.aId !== outId && t.bId !== outId && t.aId !== inId && t.bId !== inId; });
+    saveHistory(); saveSquad(); saveTrades(); render();
+    if (isAdmin() && adminUnlocked()) renderAdmin();
+    toast(nameById(inId) + " on for " + nameById(outId));
+  }
+
   /* ---------- render ---------- */
   function render(){
     var playing = squad.filter(function(p){ return p.playing; });
@@ -1153,6 +1210,7 @@
     if (!ok){ $("admincode").value = ""; return; }
     renderRatings();
     renderAdminTrades();
+    renderAdminSub();
   }
 
   // Win / draw / loss for a player, read straight out of the recorded weeks.
@@ -1257,6 +1315,7 @@
   $("admincode").onkeydown = function(e){ if (e.key === "Enter") tryUnlock(); };
   $("adminlockbtn").onclick = lockAdmin;
   $("tradesubmit").onclick = submitTrade;
+  $("subbtn").onclick = doSub;
   window.addEventListener("hashchange", applyMode);
 
   /* ---------- auto-update ----------
